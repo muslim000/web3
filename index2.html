@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Coda:wght@400;800&display=swap" rel="stylesheet">
+    <title>Guerra courant</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #2c1810;
+            touch-action: manipulation;
+        }
+        canvas {
+            image-rendering: pixelated;
+        }
+        #score {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: #fff;
+            font-family: "Coda", system-ui;
+            font-size: 24px;
+            z-index: 2;
+        }
+        #gameOver {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff0000;
+            font-family: "Coda", system-ui;
+            font-size: 24px;
+            display: none;
+            text-align: center;
+            text-shadow: 2px 2px #600000;
+        }
+        h1{
+            text-align:center;
+        }
+    </style>
+</head>
+<body>
+    <div><h1>GUERRA</h1></div>
+    <div id="score">0</div>
+    <div id="gameOver">
+        GAME OVER
+        <br>
+        Score: <span id="finalScore">0</span><br>
+        Press R or Tap to Restart <br>
+        <br> <br>
+        Game Semi developped by M-A
+        
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scale = 2;
+        canvas.width = 800;
+        canvas.height = 300;
+        
+        // Game state
+        let score = 0;
+        let speed = 3;
+        let isJumping = false;
+        let gameOver = false;
+        const player = {
+            x: 50,
+            y: 250,
+            width: 16,
+            height: 16,
+            velocityY: 0
+        };
+        let obstacles = [];
+
+        // Pixel art assets
+        const sprites = {
+            player: [
+                [0,0,0,1,1,0,0,0],
+                [0,0,1,3,3,1,0,0],
+                [0,1,3,3,3,3,1,0],
+                [1,3,3,2,2,3,3,1],
+                [1,3,2,2,2,2,3,1],
+                [0,1,3,3,3,3,1,0],
+                [0,0,1,1,1,1,0,0],
+                [0,1,1,0,0,1,1,0]
+            ],
+            tank: [
+                [0,0,4,4,4,4,0,0],
+                [0,4,4,4,4,4,4,0],
+                [4,4,4,4,4,4,4,4],
+                [4,5,5,5,5,5,5,4],
+                [0,0,5,5,5,5,0,0],
+                [0,5,5,5,5,5,5,0],
+                [5,5,5,5,5,5,5,5],
+                [5,5,5,5,5,5,5,5]
+            ],
+            rubble: [
+                [0,6,6,6,6,6,6,0],
+                [6,7,7,7,7,7,7,6],
+                [6,7,6,6,6,6,7,6],
+                [6,7,6,7,7,6,7,6],
+                [6,7,6,7,7,6,7,6],
+                [6,7,6,6,6,6,7,6],
+                [6,7,7,7,7,7,7,6],
+                [0,6,6,6,6,6,6,0]
+            ]
+        };
+
+        const colors = {
+            0: 'transparent',
+            1: '#4CAF50',
+            2: '#FF5722',
+            3: '#795548',
+            4: '#607D8B',
+            5: '#37474F',
+            6: '#555555',
+            7: '#333333'
+        };
+
+        function drawSprite(sprite, x, y) {
+            for(let row = 0; row < 8; row++) {
+                for(let col = 0; col < 8; col++) {
+                    ctx.fillStyle = colors[sprite[row][col]];
+                    ctx.fillRect(x + col*scale, y + row*scale, scale, scale);
+                }
+            }
+        }
+
+        function createObstacle() {
+            const minDistance = 250;
+            let rightmostEdge = 0;
+            
+            obstacles.forEach(obs => {
+                const edge = obs.x + obs.width;
+                if (edge > rightmostEdge) rightmostEdge = edge;
+            });
+            
+            const availableSpace = canvas.width - rightmostEdge;
+            
+            if (availableSpace >= minDistance || obstacles.length === 0) {
+                obstacles.push({
+                    x: canvas.width,
+                    y: 250,
+                    width: 16,
+                    height: 16,
+                    type: Math.random() < 0.6 ? 'tank' : 'rubble'
+                });
+            }
+        }
+
+        function jump() {
+            if(!isJumping && !gameOver) {
+                player.velocityY = -5;
+                isJumping = true;
+            }
+        }
+
+        function update() {
+            if(gameOver) return;
+
+            // Player physics
+            player.y += player.velocityY;
+            player.velocityY += 0.25;
+
+            // Ground collision
+            if(player.y > 250) {
+                player.y = 250;
+                player.velocityY = 0;
+                isJumping = false;
+            }
+
+            // Obstacle spawning system
+            if(Math.random() < 0.02 + speed/100) {
+                createObstacle();
+                speed = Math.min(8, speed + 0.1);
+            }
+
+            // Update obstacles
+            obstacles.forEach(obs => {
+                obs.x -= speed;
+                
+                // Collision detection
+                if(player.x < obs.x + obs.width &&
+                   player.x + player.width > obs.x &&
+                   player.y < obs.y + obs.height &&
+                   player.y + player.height > obs.y) {
+                    gameOver = true;
+                    document.getElementById('gameOver').style.display = 'block';
+                    document.getElementById('finalScore').textContent = Math.floor(score/10);
+                }
+            });
+
+            // Remove off-screen obstacles
+            obstacles = obstacles.filter(obs => obs.x > -obs.width);
+
+            score++;
+            document.getElementById('score').textContent = Math.floor(score/10);
+        }
+
+        function draw() {
+            ctx.fillStyle = '#2c1810';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw ground
+            ctx.fillStyle = '#3e2723';
+            ctx.fillRect(0, 266, canvas.width, 34);
+
+            // Draw player
+            drawSprite(sprites.player, player.x, player.y);
+
+            // Draw obstacles
+            obstacles.forEach(obs => {
+                drawSprite(sprites[obs.type], obs.x, obs.y);
+            });
+
+            // War effect
+            ctx.fillStyle = 'rgba(139, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function restartGame() {
+            score = 0;
+            speed = 3;
+            obstacles = [];
+            gameOver = false;
+            document.getElementById('gameOver').style.display = 'none';
+            player.y = 250;
+            player.velocityY = 0;
+            isJumping = false;
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Controls
+        document.addEventListener('keydown', (e) => {
+            if(e.code === 'Space') jump();
+            if(e.code === 'KeyR' && gameOver) restartGame();
+        });
+
+        canvas.addEventListener('touchstart', (e) => {
+            if(gameOver) restartGame();
+            else jump();
+            e.preventDefault();
+        }, { passive: false });
+
+        // Start game
+        gameLoop();
+    </script>
+</body>
+</html>
